@@ -10,6 +10,6 @@ repositories {
 }
 
 dependencies {
-    implementation("ru.spliterash:inventory-update-event-plugin:1.0.0")
+    compileOnly("ru.spliterash:inventory-update-event-plugin:1.0.0")
 }
 ```
