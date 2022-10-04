@@ -2,6 +2,9 @@ package ru.spliterash.inventoryUpdateEvent;
 
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -13,13 +16,15 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.StreamSupport;
 
-public class InventoryUpdateTimer {
+public class InventoryUpdateTimer implements Listener {
     private final Map<UUID, ItemStack[]> playerInventories = new HashMap<>();
     private final BukkitTask task;
     private final Lock lock = new ReentrantLock();
+    private final JavaPlugin plugin;
 
     public InventoryUpdateTimer(JavaPlugin plugin) {
         this.task = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::tick, 0, 0L);
+        this.plugin = plugin;
     }
 
     private void tick() {
@@ -34,7 +39,7 @@ public class InventoryUpdateTimer {
 
                 ItemStack[] inventoryArray;
                 if (prevArray == null)
-                    inventoryArray = StreamSupport.stream(inventory.spliterator(), false).toArray(ItemStack[]::new);
+                    inventoryArray = StreamSupport.stream(inventory.spliterator(), false).map(ItemStack::clone).toArray(ItemStack[]::new);
                 else {
                     inventoryArray = new ItemStack[size];
 
@@ -43,7 +48,7 @@ public class InventoryUpdateTimer {
                         ItemStack newItem = inventory.getItem(i);
                         ItemStack oldItem = prevArray[i];
 
-                        inventoryArray[i] = newItem;
+                        inventoryArray[i] = newItem != null ? newItem.clone() : null;
 
                         if (!Objects.equals(newItem, oldItem)) {
                             changes.add(new PlayerInventoryUpdateAsyncEvent.ChangingItem(i, oldItem, newItem));
@@ -58,6 +63,27 @@ public class InventoryUpdateTimer {
             lock.unlock();
         }
     }
+
+    @EventHandler
+    public void onLeave(PlayerQuitEvent e) {
+        if (lock.tryLock())
+            try {
+                playerInventories.remove(e.getPlayer().getUniqueId());
+            } finally {
+                lock.unlock();
+            }
+        else {
+            Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                try {
+                    lock.lock();
+                    playerInventories.remove(e.getPlayer().getUniqueId());
+                } finally {
+                    lock.unlock();
+                }
+            });
+        }
+    }
+
 
     public void onDisable() {
         task.cancel();
