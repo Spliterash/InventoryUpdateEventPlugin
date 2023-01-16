@@ -39,7 +39,9 @@ public class InventoryUpdateTimer implements Listener {
 
                 ItemStack[] inventoryArray;
                 if (prevArray == null)
-                    inventoryArray = StreamSupport.stream(inventory.spliterator(), false).map(ItemStack::clone).toArray(ItemStack[]::new);
+                    inventoryArray = StreamSupport.stream(inventory.spliterator(), false)
+                            .map(stack -> stack != null ? stack.clone() : null)
+                            .toArray(ItemStack[]::new);
                 else {
                     inventoryArray = new ItemStack[size];
 
